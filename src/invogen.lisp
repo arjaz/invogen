@@ -122,10 +122,9 @@
                                                  date
                                                  due-date
                                                  fees-args)
-      (let ((result-file (compile-invoice-pdf inv fees out-dir)))
-        (mito:insert-dao inv)
-        (mapcar #'mito:insert-dao fees)
-        result-file))))
+      (mito:insert-dao inv)
+      (mapcar #'mito:insert-dao fees)
+      (compile-invoice-pdf inv fees out-dir))))
 
 (defun run (from to fees-args days-to-pay &optional (prodp nil))
   (let* ((mito:*connection* (dbi:connect :sqlite3
