@@ -6,8 +6,7 @@
   :depends-on (#:alexandria
                #:uiop
                #:mito
-               #:cl-template
-               #:unix-options)
+               #:cl-template)
   :components ((:module "src"
                 :components
                 ((:file "invogen"))))

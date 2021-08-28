@@ -4,6 +4,8 @@ invogen
 *.log
 *.pdf
 invoice*.tex
+invoices-dev/
+invoices/
 *.db
 *.abcl
 *.fasl
