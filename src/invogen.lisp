@@ -1,16 +1,11 @@
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (ql:quickload
+   '(:alexandria :mito :cl-template)
+   :silent t))
+
 (defpackage #:invogen
-  (:use :cl :alexandria)
-  (:export #:main))
+  (:use :cl :alexandria))
 (in-package #:invogen)
-
-(require 'cl-template)
-(require 'alexandria)
-(require 'mito)
-
-(defun repl-deps ()
-  (ql:quickload 'cl-template)
-  (ql:quickload 'alexandria)
-  (ql:quickload 'mito))
 
 (mito:deftable entity ()
   ((id :col-type :text
@@ -59,9 +54,9 @@
                  :price price
                  :invoice invoice))
 
-(defun make-some-fees (fees-args-list)
+(defun make-some-fees (make-fee-args-list)
   (mapcar (lambda (args) (apply #'make-fee args))
-          fees-args-list))
+          make-fee-args-list))
 
 (defun ensure-entity (e)
   (unless (mito:find-dao 'entity :id (entity-id e))
@@ -73,6 +68,7 @@
 (defun drop-tables (tables)
   (mapcar #'mito:recreate-table tables))
 
+;; TODO: move from latex to something simpler
 (defun compile-tex (invoice-file)
   (uiop:run-program (concatenate 'string "pdflatex " invoice-file)
                     :force-shell t))
@@ -87,9 +83,9 @@
 (defun delete-files (files)
   (mapcar #'delete-file files))
 
-(defconstant +template-tex+ (uiop:read-file-string "../template.tex")
+(defparameter +template-tex+ (uiop:read-file-string "../template.tex")
   "Tex string to base the invoice on")
-(defconstant +template-class+ (uiop:read-file-string "../template.cls")
+(defparameter +template-class+ (uiop:read-file-string "../template.cls")
   "Some styling for the template")
 
 (defun compile-invoice-pdf (inv fees &optional (out-dir "invoices/"))
@@ -112,21 +108,20 @@
       (delete-files (list log-file aux-file tex-file))
       (concatenate 'string out-dir "invoice-" invoice-id ".pdf"))))
 
-
 (defun make-payment (issuer payer date due-date fees-args-list)
   (let* ((inv (make-instance 'invoice
                              :issuer issuer
                              :payer payer
                              :date date
                              :due-date due-date))
-         (fees-args (mapcar (lambda (list)
-                              (append list (list inv)))
-                            fees-args-list))
-         (fees (make-some-fees fees-args)))
+         (fees-args+invoice-list (mapcar (lambda (list)
+                                           (append list (list inv)))
+                                         fees-args-list))
+         (fees (make-some-fees fees-args+invoice-list)))
     (list inv fees)))
 
-
 (defun format-time (time)
+  "Convert the unix epoch `TIME' to a DD-MM-YYYY string."
   (multiple-value-bind (_s _m _h day month year) (decode-universal-time time)
     (declare (ignore _s _m _h))
     (format nil "~2,'0d.~2,'0d.~d" day month year)))
