@@ -1,10 +1,11 @@
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (ql:quickload
-   '(:alexandria :mito :cl-template)
+   '(:alexandria :mito :cl-template :unix-opts)
    :silent t))
 
 (defpackage #:invogen
-  (:use :cl :alexandria))
+  (:use :cl :alexandria)
+  (:export :main))
 (in-package #:invogen)
 
 (mito:deftable entity ()
@@ -37,7 +38,6 @@
 (mito:deftable invoice ()
   ((issuer :col-type entity)
    (payer :col-type entity)
-   ;; REVIEW: replace with built-in created_at?
    (date :col-type :text)
    (due-date :col-type :text)))
 
@@ -77,6 +77,7 @@
   (let ((issuer (invoice-issuer inv))
         (payer (invoice-payer inv)))
     (funcall
+     ;; TODO: make that static data
      (clt:compile-template template)
      (list :issuer issuer :payer payer :fees fees :inv inv :inv-id inv-id))))
 
@@ -163,3 +164,53 @@
     (let ((invoice-path (create-invoice from to fees-args days-to-pay out-dir)))
       (format t "Invoice has been created and saved to ~a~%" invoice-path))))
 
+(opts:define-opts
+  (:name :help
+   :description "Compile your invoices with Lisp and Latex"
+   :short #\h
+   :long "help")
+  (:name :prodp
+   :description "Compile for production"
+   :short #\f
+   :long "production")
+  (:name :from
+   :description "Issuer alias"
+   :short #\F
+   :long "from"
+   :required t
+   :arg-parser #'identity)
+  (:name :to
+   :description "Payer alias"
+   :short #\t
+   :long "to"
+   :required t
+   :arg-parser #'identity)
+  (:name :description
+   :description "Fee description"
+   :short #\D
+   :long "description"
+   :required t
+   :arg-parser #'identity)
+  (:name :price
+   :description "Price of the fee"
+   :short #\p
+   :long "price"
+   :arg-parser #'parse-integer
+   :required t)
+  (:name :days-to-pay
+   :description "Days to pay"
+   :short #\d
+   :long "days-to-pay"
+   :default 14
+   :arg-parser #'parse-integer))
+
+(defun main ()
+  (let ((opts (opts:get-opts)))
+    (run (getf opts :from)
+         (getf opts :to)
+         (list (list (getf opts :description)
+                     1
+                     (getf opts :price)))
+         (getf opts :days-to-pay)
+         (getf opts :prodp)))
+  (uiop:quit))
