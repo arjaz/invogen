@@ -4,42 +4,37 @@
 
 \begin{document}
 
-\hfill{\Huge\bf Invoice \#<%= @ inv-id %>}\hfill
+\hfill{\Huge\bf Invoice \#<|= @ inv-id |>}\hfill
 \bigskip\break
-{\large from \bf <%= entity-name (@ issuer) %>}
-\hfill issued <%= invoice-date (@ inv) %> \\
+{\large from \bf <|= @ issuer-name |>}
+\hfill issued <|= @ invoice-date |> \\
 \hrule
 
-<%= entity-address (@ issuer) %>
-\hfill <%= entity-phone (@ issuer) %> \\
-\tab Tax id: <%= entity-tax-id (@ issuer) %> \\
-\tab IBAN: <%= entity-iban (@ issuer) %> \\
-\tab SWIFT: <%= entity-swift (@ issuer) %> \\
-\tab Legal form: <%= entity-legal-form (@ issuer) %> \\
+<|= @ issuer-address |>
+\hfill <|= @ issuer-phone |> \\
+\tab Tax id: <|= @ issuer-tax-id |> \\
+\tab IBAN: <|= @ issuer-iban |> \\
+\tab SWIFT: <|= @ issuer-swift |> \\
+\tab Legal form: <|= @ issuer-legal-form |> \\
 \\ \\
 {\bf Invoice To:} \\
-\tab <%= entity-name (@ payer) %> \\
-\tab <%= entity-address (@ payer) %> \\
-\tab Id: <%= entity-id (@ payer) %> \\
-\tab Vat id: <%= entity-vat-id (@ payer) %> \\
+\tab <|= @ payer-name |> \\
+\tab <|= @ payer-address |> \\
+\tab Id: <|= @ payer-id |> \\
+\tab Vat id: <|= @ payer-vat-id |> \\
 
 {\bf Due Date:} \\
-\tab <%= invoice-due-date (@ inv) %> \\
+\tab <|= @ invoice-due-date |> \\
 
-%----------------------------------------------------------------------------------------
-%	TABLE OF EXPENSES
-%----------------------------------------------------------------------------------------
 
 \begin{invoiceTable}
 
-% \feetype{Consulting Services}
-
-<% (loop for f in (@ fees) do %>
+<| (loop for f in (@ fees) do |>
 \hourrow
-  {<%= fee-description f %>}
-  {<%= princ-to-string (fee-quantity f) %>}
-  {<%= format nil "~,2f" (/ (fee-price f) 100) %>}
-<% ) %>
+  {<|= first f |>}
+  {<|= second f |>}
+  {<|= third f |>}
+<| ) |>
 
 \subtotal
 

@@ -77,9 +77,33 @@
   (let ((issuer (invoice-issuer inv))
         (payer (invoice-payer inv)))
     (funcall
-     ;; TODO: make that static data
-     (clt:compile-template template)
-     (list :issuer issuer :payer payer :fees fees :inv inv :inv-id inv-id))))
+     (clt:compile-template template
+                           :start-delimiter "<|"
+                           :start-echo-delimiter "<|="
+                           :end-delimiter "|>")
+     (list :inv-id inv-id
+
+           :issuer-name       (entity-name issuer)
+           :issuer-address    (entity-address issuer)
+           :issuer-phone      (entity-phone issuer)
+           :issuer-tax-id     (entity-tax-id issuer)
+           :issuer-iban       (entity-iban issuer)
+           :issuer-swift      (entity-swift issuer)
+           :issuer-legal-form (entity-legal-form issuer)
+
+           :payer-name        (entity-name payer)
+           :payer-address     (entity-address payer)
+           :payer-id          (entity-id payer)
+           :payer-vat-id      (entity-vat-id payer)
+
+           :invoice-due-date (invoice-due-date inv)
+           :invoice-date     (invoice-date inv)
+
+           :fees (mapcar (lambda (fee)
+                            (list (fee-description fee)
+                                  (princ-to-string (fee-quantity fee))
+                                  (format nil "~,2f" (/ (fee-price fee) 100))))
+                          fees)))))
 
 (defun delete-files (files)
   (mapcar #'delete-file files))
@@ -91,7 +115,6 @@
 
 (defun compile-invoice-pdf (inv fees &optional (out-dir "invoices/"))
   (uiop:with-current-directory (out-dir)
-    (format t (princ-to-string inv))
     (let* ((invoice-id (princ-to-string (mito:object-id inv)))
            (log-file (concatenate 'string "invoice-" invoice-id ".log"))
            (aux-file (concatenate 'string "invoice-" invoice-id ".aux"))
@@ -144,7 +167,7 @@
       (mapcar #'mito:insert-dao fees)
       (compile-invoice-pdf inv fees out-dir))))
 
-(defun connect (&optional (prodp nil))
+(defun connect-db (&optional (prodp nil))
   "Connect to the DB."
   (mito:connect-toplevel :postgres
                          :username "invogen"
