@@ -7,7 +7,7 @@
                #:uiop
                #:mito
                #:cl-template
-               #:series)
+               #:unix-opts)
   :components ((:module "src"
                 :components
                 ((:file "invogen"))))

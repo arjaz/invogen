@@ -1,11 +1,5 @@
-(eval-when (:compile-toplevel :load-toplevel :execute)
-  (ql:quickload
-   '(:alexandria :mito :cl-template :unix-opts)
-   :silent t))
-
 (defpackage #:invogen
-  (:use :cl :alexandria)
-  (:export :main))
+  (:use :cl :alexandria))
 (in-package #:invogen)
 
 (mito:deftable entity ()
@@ -237,3 +231,6 @@
          (getf opts :days-to-pay)
          (getf opts :prodp)))
   (uiop:quit))
+
+(let ((pack (find-package :invogen)))
+  (do-all-symbols (sym pack) (when (eql (symbol-package sym) pack) (export sym))))
