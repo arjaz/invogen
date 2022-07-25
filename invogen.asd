@@ -8,9 +8,7 @@
                #:mito
                #:cl-template
                #:unix-opts)
-  :components ((:module "src"
-                :components
-                ((:file "invogen"))))
+  :components ((:file "invogen"))
   :description ""
   :build-operation "program-op"
   :build-pathname "invogen"

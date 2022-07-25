@@ -48,10 +48,6 @@
                  :price price
                  :invoice invoice))
 
-(defun make-some-fees (make-fee-args-list)
-  (mapcar (lambda (args) (apply #'make-fee args))
-          make-fee-args-list))
-
 (defun ensure-entity (e)
   (unless (mito:find-dao 'entity :id (entity-id e))
     (mito:insert-dao e)))
@@ -64,12 +60,13 @@
 
 ;; TODO: move from latex to something simpler
 (defun compile-tex (invoice-file)
-  (uiop:run-program (concatenate 'string "pdflatex " invoice-file)
-                    :force-shell t))
+  (uiop:run-program
+   (concatenate 'string "pdflatex " (pathname-name invoice-file) "." (pathname-type invoice-file))
+   :force-shell t))
 
-(defun compile-inv-template (template inv fees inv-id)
-  (let ((issuer (invoice-issuer inv))
-        (payer (invoice-payer inv)))
+(defun compile-invoice-template (template invoice fees inv-id)
+  (let ((issuer (invoice-issuer invoice))
+        (payer (invoice-payer invoice)))
     (funcall
      (clt:compile-template template
                            :start-delimiter "<|"
@@ -90,53 +87,30 @@
            :payer-id          (entity-id payer)
            :payer-vat-id      (entity-vat-id payer)
 
-           :invoice-due-date (invoice-due-date inv)
-           :invoice-date     (invoice-date inv)
+           :invoice-due-date (invoice-due-date invoice)
+           :invoice-date     (invoice-date invoice)
 
-           :fees (mapcar (lambda (fee)
-                            (list (fee-description fee)
-                                  (princ-to-string (fee-quantity fee))
-                                  (format nil "~,2f" (/ (fee-price fee) 100))))
-                          fees)))))
+           :fees (loop for fee in fees
+                       collecting (list (fee-description fee)
+                                        (princ-to-string (fee-quantity fee))
+                                        (format nil "~,2f" (/ (fee-price fee) 100))))))))
 
-(defun delete-files (files)
-  (mapcar #'delete-file files))
-
-(defparameter +template-tex+ (uiop:read-file-string "../template.tex")
-  "Tex string to base the invoice on")
-(defparameter +template-class+ (uiop:read-file-string "../template.cls")
-  "Some styling for the template")
-
-(defun compile-invoice-pdf (inv fees &optional (out-dir "invoices/"))
-  (uiop:with-current-directory (out-dir)
-    (let* ((invoice-id (princ-to-string (mito:object-id inv)))
-           (log-file (concatenate 'string "invoice-" invoice-id ".log"))
-           (aux-file (concatenate 'string "invoice-" invoice-id ".aux"))
-           (tex-file (concatenate 'string "invoice-" invoice-id ".tex")))
-      (write-string-into-file +template-class+ "invoice.cls"
+(defun compile-invoice-pdf (invoice fees out-file template-tex template-class)
+  (uiop:with-current-directory ((uiop:pathname-directory-pathname out-file))
+    (let* ((invoice-id (princ-to-string (mito:object-id invoice)))
+           (file-name (pathname-name out-file))
+           (log-file (make-pathname :name file-name :type "log"))
+           (aux-file (make-pathname :name file-name :type "aux"))
+           (tex-file (make-pathname :name file-name :type "tex"))
+           (pdf-file (make-pathname :name file-name :type "pdf")))
+      ;; TODO: make the class handling non-dependent on the exact template
+      (write-string-into-file template-class "invoice.cls" :if-exists :supersede)
+      (write-string-into-file (compile-invoice-template template-tex invoice fees invoice-id)
+                              tex-file
                               :if-exists :supersede)
-      (write-string-into-file
-       (compile-inv-template +template-tex+
-                             inv
-                             fees
-                             invoice-id)
-       tex-file
-       :if-exists :supersede)
       (compile-tex tex-file)
-      (delete-files (list log-file aux-file tex-file))
-      (concatenate 'string out-dir "invoice-" invoice-id ".pdf"))))
-
-(defun make-payment (issuer payer date due-date fees-args-list)
-  (let* ((inv (make-instance 'invoice
-                             :issuer issuer
-                             :payer payer
-                             :date date
-                             :due-date due-date))
-         (fees-args+invoice-list (mapcar (lambda (list)
-                                           (append list (list inv)))
-                                         fees-args-list))
-         (fees (make-some-fees fees-args+invoice-list)))
-    (list inv fees)))
+      (mapcar #'delete-file (list log-file aux-file tex-file "invoice.cls"))
+      (rename-file pdf-file (make-pathname :name file-name :type (pathname-type out-file))))))
 
 (defun format-time (time)
   "Convert the unix epoch `TIME' to a DD-MM-YYYY string."
@@ -144,49 +118,47 @@
     (declare (ignore _s _m _h))
     (format nil "~2,'0d.~2,'0d.~d" day month year)))
 
-(defun create-invoice (issuer-alias payer-alias fees-args days-to-pay
-                       &optional (out-dir "invoices/"))
+(defun create-invoice (issuer-alias payer-alias fees-args days-to-pay)
   (let* ((current-time (get-universal-time))
          (payment-time (+ current-time (* days-to-pay 60 60 24)))
          (date (format-time current-time))
          (due-date (format-time payment-time))
          (issuer (mito:find-dao 'entity :alias issuer-alias))
-         (payer (mito:find-dao 'entity :alias payer-alias)))
-    (destructuring-bind (inv fees) (make-payment issuer
-                                                 payer
-                                                 date
-                                                 due-date
-                                                 fees-args)
-      (mito:insert-dao inv)
-      (mapcar #'mito:insert-dao fees)
-      (compile-invoice-pdf inv fees out-dir))))
+         (payer (mito:find-dao 'entity :alias payer-alias))
+         (invoice (make-instance 'invoice
+                                 :issuer issuer
+                                 :payer payer
+                                 :date date
+                                 :due-date due-date))
+         (fees (loop for args in fees-args collecting (apply #'make-fee (append args (list invoice))))))
+    (values invoice fees)))
 
-(defun connect-db (&optional (prodp nil))
+(defun connect-db (production)
   "Connect to the DB."
   (mito:connect-toplevel :postgres
                          :username "invogen"
-                         :database-name (if prodp "invogen" "invogen_dev")))
+                         :database-name (if production "invogen" "invogen_dev")))
 
-(defun run (from to fees-args days-to-pay &optional (prodp nil))
-  (let* ((mito:*connection* (dbi:connect :postgres
-                                         :username "invogen"
-                                         :database-name (if prodp
-                                                            "invogen"
-                                                            "invogen_dev")))
-         (out-dir (if prodp
-                      "invoices/"
-                      "invoices-dev/")))
-    (ensure-database)
-    (ensure-directories-exist out-dir)
-    (let ((invoice-path (create-invoice from to fees-args days-to-pay out-dir)))
-      (format t "Invoice has been created and saved to ~a~%" invoice-path))))
+(defun run (from to fees-args days-to-pay out-dir template-tex template-class)
+  (ensure-database)
+  (ensure-directories-exist out-dir)
+  (multiple-value-bind (invoice fees)
+      (create-invoice from to fees-args days-to-pay)
+    (mito:insert-dao invoice)
+    (mapcar #'mito:insert-dao fees)
+    (let ((out-file (make-pathname :name (concatenate 'string "invoice-" (princ-to-string (mito:object-id invoice)))
+                                   :directory (pathname-directory out-dir)
+                                   :type "pdf")))
+      (compile-invoice-pdf invoice fees out-file template-tex template-class)
+      (format t "Invoice has been created and saved to ~a~%" out-file)
+      out-file)))
 
 (opts:define-opts
   (:name :help
    :description "Compile your invoices with Lisp and Latex"
    :short #\h
    :long "help")
-  (:name :prodp
+  (:name :production
    :description "Compile for production"
    :short #\f
    :long "production")
@@ -222,15 +194,24 @@
    :arg-parser #'parse-integer))
 
 (defun main ()
-  (let ((opts (opts:get-opts)))
+  (let* ((opts (opts:get-opts))
+         (template-tex (uiop:read-file-string "template.tex"))
+         (template-class (uiop:read-file-string "template.cls"))
+         (out-dir (if (getf opts :production)
+                      #p"invoices/"
+                      #p"invoices-dev/"))
+         (mito:*connection* (dbi:connect :postgres
+                                         :username "invogen"
+                                         :database-name (if (getf opts :production)
+                                                            "invogen"
+                                                            "invogen_dev"))))
     (run (getf opts :from)
          (getf opts :to)
          (list (list (getf opts :description)
                      1
                      (getf opts :price)))
          (getf opts :days-to-pay)
-         (getf opts :prodp)))
+         out-dir
+         template-tex
+         template-class))
   (uiop:quit))
-
-(let ((pack (find-package :invogen)))
-  (do-all-symbols (sym pack) (when (eql (symbol-package sym) pack) (export sym))))
