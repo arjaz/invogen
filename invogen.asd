@@ -7,7 +7,8 @@
                #:uiop
                #:mito
                #:cl-template
-               #:unix-opts)
+               #:unix-opts
+               #:iterate)
   :components ((:file "invogen"))
   :description ""
   :build-operation "program-op"

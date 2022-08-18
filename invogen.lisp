@@ -1,5 +1,5 @@
 (defpackage #:invogen
-  (:use :cl :alexandria))
+  (:use :cl :alexandria :iterate))
 (in-package #:invogen)
 
 (mito:deftable entity ()
@@ -72,8 +72,7 @@
                            :start-delimiter "<|"
                            :start-echo-delimiter "<|="
                            :end-delimiter "|>")
-     (list :inv-id inv-id
-
+     (list :inv-id            inv-id
            :issuer-name       (entity-name issuer)
            :issuer-address    (entity-address issuer)
            :issuer-phone      (entity-phone issuer)
@@ -81,19 +80,17 @@
            :issuer-iban       (entity-iban issuer)
            :issuer-swift      (entity-swift issuer)
            :issuer-legal-form (entity-legal-form issuer)
-
            :payer-name        (entity-name payer)
            :payer-address     (entity-address payer)
            :payer-id          (entity-id payer)
            :payer-vat-id      (entity-vat-id payer)
-
-           :invoice-due-date (invoice-due-date invoice)
-           :invoice-date     (invoice-date invoice)
-
-           :fees (loop for fee in fees
-                       collecting (list (fee-description fee)
-                                        (princ-to-string (fee-quantity fee))
-                                        (format nil "~,2f" (/ (fee-price fee) 100))))))))
+           :invoice-due-date  (invoice-due-date invoice)
+           :invoice-date      (invoice-date invoice)
+           :fees              (iterate (for fee in fees)
+                                (collecting (list
+                                             (fee-description fee)
+                                             (princ-to-string (fee-quantity fee))
+                                             (format nil "~,2f" (/ (fee-price fee) 100)))))))))
 
 (defun compile-invoice-pdf (invoice fees out-file template-tex template-class)
   (uiop:with-current-directory ((uiop:pathname-directory-pathname out-file))
@@ -130,7 +127,8 @@
                                  :payer payer
                                  :date date
                                  :due-date due-date))
-         (fees (loop for args in fees-args collecting (apply #'make-fee (append args (list invoice))))))
+         (fees (iterate (for args in fees-args)
+                 (collecting (apply #'make-fee (append args (list invoice)))))))
     (values invoice fees)))
 
 (defun connect-db (production)
