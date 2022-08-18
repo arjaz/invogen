@@ -86,13 +86,19 @@
            :payer-vat-id      (entity-vat-id payer)
            :invoice-due-date  (invoice-due-date invoice)
            :invoice-date      (invoice-date invoice)
+           :total             (format nil "~,2f"
+                                      (/
+                                       (iterate (for fee in fees)
+                                         (summing (* (fee-quantity fee) (fee-price fee))))
+                                       100))
            :fees              (iterate (for fee in fees)
                                 (collecting (list
                                              (fee-description fee)
                                              (princ-to-string (fee-quantity fee))
-                                             (format nil "~,2f" (/ (fee-price fee) 100)))))))))
+                                             (format nil "~,2f" (/ (fee-price fee) 100))
+                                             (format nil "~,2f" (/ (* (fee-quantity fee) (fee-price fee)) 100)))))))))
 
-(defun compile-invoice-pdf (invoice fees out-file template-tex template-class)
+(defun compile-invoice-pdf (invoice fees out-file template-tex)
   (uiop:with-current-directory ((uiop:pathname-directory-pathname out-file))
     (let* ((invoice-id (princ-to-string (mito:object-id invoice)))
            (file-name (pathname-name out-file))
@@ -100,13 +106,11 @@
            (aux-file (make-pathname :name file-name :type "aux"))
            (tex-file (make-pathname :name file-name :type "tex"))
            (pdf-file (make-pathname :name file-name :type "pdf")))
-      ;; TODO: make the class handling non-dependent on the exact template
-      (write-string-into-file template-class "invoice.cls" :if-exists :supersede)
       (write-string-into-file (compile-invoice-template template-tex invoice fees invoice-id)
                               tex-file
                               :if-exists :supersede)
       (compile-tex tex-file)
-      (mapcar #'delete-file (list log-file aux-file tex-file "invoice.cls"))
+      (mapcar #'delete-file (list log-file aux-file tex-file))
       (rename-file pdf-file (make-pathname :name file-name :type (pathname-type out-file))))))
 
 (defun format-time (time)
@@ -137,7 +141,7 @@
                          :username "invogen"
                          :database-name (if production "invogen" "invogen_dev")))
 
-(defun run (from to fees-args days-to-pay out-dir template-tex template-class)
+(defun run (from to fees-args days-to-pay out-dir template-tex)
   (ensure-database)
   (ensure-directories-exist out-dir)
   (multiple-value-bind (invoice fees)
@@ -147,7 +151,7 @@
     (let ((out-file (make-pathname :name (concatenate 'string "invoice-" (princ-to-string (mito:object-id invoice)))
                                    :directory (pathname-directory out-dir)
                                    :type "pdf")))
-      (compile-invoice-pdf invoice fees out-file template-tex template-class)
+      (compile-invoice-pdf invoice fees out-file template-tex)
       (format t "Invoice has been created and saved to ~a~%" out-file)
       out-file)))
 
@@ -194,7 +198,6 @@
 (defun main ()
   (let* ((opts (opts:get-opts))
          (template-tex (uiop:read-file-string "template.tex"))
-         (template-class (uiop:read-file-string "template.cls"))
          (out-dir (if (getf opts :production)
                       #p"invoices/"
                       #p"invoices-dev/"))
@@ -210,6 +213,5 @@
                      (getf opts :price)))
          (getf opts :days-to-pay)
          out-dir
-         template-tex
-         template-class))
+         template-tex))
   (uiop:quit))

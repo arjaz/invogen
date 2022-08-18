@@ -1,12 +1,19 @@
-\documentclass{invoice}
+\documentclass{article}
+
+\usepackage[letterpaper,hmargin=0.79in,vmargin=0.79in]{geometry}
+\usepackage[parfill]{parskip} % Do not indent paragraphs
+\usepackage{longtable}
+
+\pagestyle{empty}
+\linespread{1.5}
 
 \def \tab {\hspace*{3ex}}
 
 \begin{document}
 
-\hfill{\Huge\bf Invoice \#<|= @ inv-id |>}\hfill
+\hfill{\Huge\textbf{Invoice \#<|= @ inv-id |>}}\hfill
 \bigskip\break
-{\large from \bf <|= @ issuer-name |>}
+{\large from \textbf{<|= @ issuer-name |>}}
 \hfill issued <|= @ invoice-date |> \\
 \hrule
 
@@ -17,27 +24,25 @@
 \tab SWIFT: <|= @ issuer-swift |> \\
 \tab Legal form: <|= @ issuer-legal-form |> \\
 \\ \\
-{\bf Invoice To:} \\
+\textbf{Invoice To:} \\
 \tab <|= @ payer-name |> \\
 \tab <|= @ payer-address |> \\
 \tab Id: <|= @ payer-id |> \\
 \tab Vat id: <|= @ payer-vat-id |> \\
 
-{\bf Due Date:} \\
+\textbf{Due Date:} \\
 \tab <|= @ invoice-due-date |> \\
 
+\begin{longtable}{l r r r}
+  \textbf{Description of Services} & \textbf{Quantity} & \textbf{Unit Price} & \textbf{Amount} \\
+  \hline
 
-\begin{invoiceTable}
+  <| (loop for f in (@ fees) do |>
+  \tab <|= first f |> & <|= second f |> & <|= third f |> € & <|= fourth f |> € \\
+  <| ) |>
 
-<| (loop for f in (@ fees) do |>
-\hourrow
-  {<|= first f |>}
-  {<|= second f |>}
-  {<|= third f |>}
-<| ) |>
-
-\subtotal
-
-\end{invoiceTable}
+  \hline
+  \textbf{Total} & & & \textbf{<|= @ total |>} €
+\end{longtable}
 
 \end{document}
